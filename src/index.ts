@@ -2,6 +2,7 @@ import express from 'express';
 import { config } from './config';
 import { prisma } from './db';
 import { errorHandler } from './errors';
+import { authRouter } from './routes/auth';
 
 const app = express();
 
@@ -10,6 +11,8 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
+
+app.use(authRouter);
 
 app.use(errorHandler);
 
