@@ -44,3 +44,17 @@ export const shareNoteSchema = z.object({
 });
 
 export type ShareNoteBody = z.infer<typeof shareNoteSchema>;
+
+export const pinNoteSchema = z.object({
+  pinned: z.boolean(),
+});
+
+export const reorderNotesSchema = z.object({
+  note_ids: z
+    .array(z.uuid({ message: 'Invalid note ID format' }))
+    .min(1, 'At least one note ID is required')
+    .max(1000, 'Too many notes to reorder at once'),
+});
+
+export type PinNoteBody = z.infer<typeof pinNoteSchema>;
+export type ReorderNotesBody = z.infer<typeof reorderNotesSchema>;

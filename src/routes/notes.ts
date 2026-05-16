@@ -7,6 +7,8 @@ import {
   updateNoteSchema,
   noteIdParamSchema,
   shareNoteSchema,
+  pinNoteSchema,
+  reorderNotesSchema,
 } from "../validation/schemas";
 
 export const notesRouter = Router();
@@ -55,6 +57,23 @@ notesRouter.post("/notes", async (req, res) => {
   res.status(201).json(serializeNote(note));
 });
 
+notesRouter.put("/notes/reorder", async (req, res) => {
+  const { note_ids } = reorderNotesSchema.parse(req.body);
+  const userId = req.user!.id;
+
+  const results = await prisma.$transaction(
+    note_ids.map((id, idx) =>
+      prisma.note.updateMany({
+        where: { id, ownerId: userId },
+        data: { position: idx },
+      })
+    )
+  );
+
+  const count = results.reduce((sum, r) => sum + r.count, 0);
+  res.json({ message: "Reordered", count });
+});
+
 notesRouter.get("/notes/:id", async (req, res) => {
   const { id } = noteIdParamSchema.parse(req.params);
   const userId = req.user!.id;
@@ -92,6 +111,21 @@ notesRouter.delete("/notes/:id", async (req, res) => {
   });
   if (result.count === 0) throw new AppError(404, "Note not found");
   res.status(204).send();
+});
+
+notesRouter.put("/notes/:id/pin", async (req, res) => {
+  const { id } = noteIdParamSchema.parse(req.params);
+  const { pinned } = pinNoteSchema.parse(req.body);
+  const userId = req.user!.id;
+
+  const result = await prisma.note.updateMany({
+    where: { id, ownerId: userId },
+    data: { pinned },
+  });
+  if (result.count === 0) throw new AppError(404, "Note not found");
+
+  const note = await prisma.note.findUniqueOrThrow({ where: { id } });
+  res.json(serializeNote(note));
 });
 
 notesRouter.post("/notes/:id/share", async (req, res) => {
