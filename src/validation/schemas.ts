@@ -33,3 +33,14 @@ export const noteIdParamSchema = z.object({
 
 export type CreateNoteBody = z.infer<typeof createNoteSchema>;
 export type UpdateNoteBody = z.infer<typeof updateNoteSchema>;
+
+export const shareNoteSchema = z.object({
+  share_with_email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Invalid email format')
+    .max(254),
+});
+
+export type ShareNoteBody = z.infer<typeof shareNoteSchema>;

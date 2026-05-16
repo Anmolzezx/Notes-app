@@ -6,6 +6,7 @@ import {
   createNoteSchema,
   updateNoteSchema,
   noteIdParamSchema,
+  shareNoteSchema,
 } from "../validation/schemas";
 
 export const notesRouter = Router();
@@ -91,4 +92,33 @@ notesRouter.delete("/notes/:id", async (req, res) => {
   });
   if (result.count === 0) throw new AppError(404, "Note not found");
   res.status(204).send();
+});
+
+notesRouter.post("/notes/:id/share", async (req, res) => {
+  const { id } = noteIdParamSchema.parse(req.params);
+  const { share_with_email } = shareNoteSchema.parse(req.body);
+  const userId = req.user!.id;
+  const userEmail = req.user!.email.toLowerCase();
+
+  const note = await prisma.note.findFirst({
+    where: { id, ownerId: userId },
+  });
+  if (!note) throw new AppError(404, "Note not found");
+
+  if (share_with_email === userEmail) {
+    throw new AppError(400, "Cannot share a note with yourself");
+  }
+
+  const recipient = await prisma.user.findUnique({
+    where: { email: share_with_email },
+  });
+  if (!recipient) throw new AppError(404, "Recipient user not found");
+
+  await prisma.noteShare.upsert({
+    where: { noteId_userId: { noteId: id, userId: recipient.id } },
+    create: { noteId: id, userId: recipient.id },
+    update: {},
+  });
+
+  res.status(200).json({ message: `Note shared with ${share_with_email}` });
 });
