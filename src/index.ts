@@ -3,6 +3,7 @@ import { config } from './config';
 import { prisma } from './db';
 import { errorHandler } from './errors';
 import { authRouter } from './routes/auth';
+import { notesRouter } from './routes/notes';
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use(authRouter);
+app.use(notesRouter);
 
 app.use(errorHandler);
 
