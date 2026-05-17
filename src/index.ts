@@ -5,15 +5,13 @@ import { errorHandler } from './errors';
 import { authRouter } from './routes/auth';
 import { notesRouter } from './routes/notes';
 import { searchRouter } from './routes/search';
+import { metaRouter } from './routes/meta';
 
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
-
+app.use(metaRouter);
 app.use(authRouter);
 app.use(notesRouter);
 app.use(searchRouter);

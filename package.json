@@ -8,7 +8,8 @@
     "build": "prisma generate && tsc",
     "start": "prisma migrate deploy && node dist/index.js",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "test:smoke": "tsx tests/smoke.ts"
   },
   "engines": {
     "node": ">=20"
