@@ -6,7 +6,7 @@ import { serializeNote } from './notes';
 
 export const searchRouter = Router();
 
-searchRouter.use(requireAuth);
+searchRouter.use('/search', requireAuth);
 
 searchRouter.get('/search', async (req, res) => {
   const { q, limit, offset } = searchQuerySchema.parse(req.query);

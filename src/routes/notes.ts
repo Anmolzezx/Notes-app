@@ -14,7 +14,7 @@ import {
 
 export const notesRouter = Router();
 
-notesRouter.use(requireAuth);
+notesRouter.use("/notes", requireAuth);
 
 export interface NoteRow {
   id: string;

@@ -1,3 +1,5 @@
+import path from 'path';
+import fs from 'fs';
 import express from 'express';
 import { config } from './config';
 import { prisma } from './db';
@@ -15,6 +17,14 @@ app.use(metaRouter);
 app.use(authRouter);
 app.use(notesRouter);
 app.use(searchRouter);
+
+const webDist = path.join(process.cwd(), 'web', 'dist');
+if (fs.existsSync(webDist)) {
+  app.use(express.static(webDist));
+  app.get(/^\/(?!register|login|notes|search|health|about|openapi\.json).*/, (_req, res) => {
+    res.sendFile(path.join(webDist, 'index.html'));
+  });
+}
 
 app.use(errorHandler);
 
