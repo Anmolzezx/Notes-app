@@ -30,8 +30,8 @@ app.use(errorHandler);
 
 async function main() {
   await prisma.$connect();
-  app.listen(config.PORT, () => {
-    console.log(`Notes API listening on http://localhost:${config.PORT}`);
+  app.listen(config.PORT, '0.0.0.0', () => {
+    console.log(`Notes API listening on http://0.0.0.0:${config.PORT}`);
   });
 }
 
