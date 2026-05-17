@@ -23,6 +23,9 @@ A multi-user notes REST API with JWT auth, sharing, pinning + custom reordering,
 | POST | `/notes/:id/share` | JWT | Share a note with another user (owner only, idempotent) |
 | PUT | `/notes/:id/pin` | JWT | Pin or unpin a note (owner only) |
 | PUT | `/notes/reorder` | JWT | Reorder by `note_ids` array (non-owned IDs are silently skipped) |
+| GET | `/notes/:id/versions` | JWT | List version history (owner or shared user) |
+| GET | `/notes/:id/versions/:vid` | JWT | Fetch a specific past version |
+| POST | `/notes/:id/versions/:vid/restore` | JWT | Restore content from a past version (owner only). Creates a new version. |
 | GET | `/search?q=...` | JWT | Case-insensitive search across accessible notes. Supports pagination. |
 
 Full spec at `GET /openapi.json`.
@@ -156,6 +159,15 @@ curl "http://localhost:3000/search?q=milk" \
 ```
 
 ---
+
+## Featured: Note version history
+
+Every change to a note (create, update, or restore) is snapshotted into a separate `note_versions` table with a monotonically increasing `version_no`. Users can browse the timeline, view any past snapshot, and restore — and restore itself creates a new version, so the historical record is never destroyed.
+
+- Snapshots happen inside the same DB transaction as the note update, so the version log is always consistent with the live note.
+- `version_no` is computed as `MAX(version_no) + 1` inside the transaction (`@@unique([noteId, versionNo])` guards against stray duplicates).
+- Read access follows the same owner-or-shared rules as the note. Only the owner can restore.
+- Versions cascade away when the parent note is deleted.
 
 ## Design notes
 

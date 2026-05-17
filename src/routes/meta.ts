@@ -12,12 +12,14 @@ metaRouter.get('/about', (_req, res) => {
     name: 'Anmol Singh',
     email: 'anmol.singh@withinstafix.com',
     'my features': {
+      'Note version history':
+        'Every change to a note (create, update, restore) is automatically snapshotted into a separate note_versions table with a monotonically increasing version number. ' +
+        'Endpoints: GET /notes/:id/versions (timeline), GET /notes/:id/versions/:versionId (a specific snapshot), POST /notes/:id/versions/:versionId/restore (restore old content, which itself creates a new version so history is never destroyed). ' +
+        'Chose this because users genuinely lose work when they accidentally overwrite a note — and the implementation has real depth: transactional snapshot-on-write, monotonic numbering via aggregate-then-insert, restore that produces a new version rather than mutating, and cascade-on-delete so version history disappears with the note. ' +
+        'Read access follows the same owner-or-shared rules as the note itself; only the owner can restore.',
       'Pinned notes with custom reordering':
-        'Users can pin important notes to the top of their list (PUT /notes/:id/pin) and define a custom order via PUT /notes/reorder. ' +
-        'GET /notes returns notes sorted by pinned first, then by custom position, then by recency. ' +
-        'Chose this because quick access to important notes is what makes note-taking apps useful day to day, ' +
-        'and the implementation exercises transactional multi-row updates with ownership predicates — ' +
-        'meaningful surface area beyond basic CRUD.',
+        'Bonus: users can pin notes to the top (PUT /notes/:id/pin) and reorder via PUT /notes/reorder. ' +
+        'GET /notes sorts by pinned first, then custom position, then recency.',
     },
   });
 });

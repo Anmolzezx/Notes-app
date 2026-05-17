@@ -102,6 +102,17 @@
           "pinned": { "type": "boolean" }
         }
       },
+      "NoteVersion": {
+        "type": "object",
+        "required": ["id", "version_no", "title", "content", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "version_no": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "ReorderNotesRequest": {
         "type": "object",
         "required": ["note_ids"],
@@ -349,6 +360,65 @@
         "summary": "Delete a note (owner only)",
         "responses": {
           "204": { "description": "Deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/notes/{id}/versions": {
+      "parameters": [{ "$ref": "#/components/parameters/NoteId" }],
+      "get": {
+        "summary": "List version history for a note (owner or shared user)",
+        "responses": {
+          "200": {
+            "description": "Versions ordered newest first",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NoteVersion" } }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/notes/{id}/versions/{versionId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/NoteId" },
+        { "name": "versionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+      ],
+      "get": {
+        "summary": "Fetch a single version (owner or shared user)",
+        "responses": {
+          "200": {
+            "description": "The version snapshot",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/NoteVersion" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/notes/{id}/versions/{versionId}/restore": {
+      "parameters": [
+        { "$ref": "#/components/parameters/NoteId" },
+        { "name": "versionId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+      ],
+      "post": {
+        "summary": "Restore a note to a previous version (owner only). Creates a new version with the restored content.",
+        "responses": {
+          "200": {
+            "description": "Note after restore",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Note" } }
+            }
+          },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" }

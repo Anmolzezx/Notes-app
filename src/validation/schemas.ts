@@ -31,6 +31,11 @@ export const noteIdParamSchema = z.object({
   id: z.uuid({ message: 'Invalid note ID format' }),
 });
 
+export const versionParamSchema = z.object({
+  id: z.uuid({ message: 'Invalid note ID format' }),
+  versionId: z.uuid({ message: 'Invalid version ID format' }),
+});
+
 export type CreateNoteBody = z.infer<typeof createNoteSchema>;
 export type UpdateNoteBody = z.infer<typeof updateNoteSchema>;
 

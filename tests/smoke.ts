@@ -315,6 +315,98 @@ async function main() {
     assert(r.status === 400, 'search without q -> 400');
   }
 
+  console.log('\nVersion history:');
+  let versionedNoteId = '';
+  let v1Id = '';
+  {
+    const r = await request('POST', '/notes', {
+      token: aliceToken,
+      body: { title: 'v-note', content: 'first revision' },
+    });
+    assert(r.status === 201, 'create versioned note -> 201');
+    versionedNoteId = (r.body as { id: string }).id;
+  }
+  {
+    const r = await request('GET', `/notes/${versionedNoteId}/versions`, { token: aliceToken });
+    assert(r.status === 200, 'list versions -> 200');
+    const versions = r.body as Array<{ id: string; version_no: number; content: string }>;
+    assert(versions.length === 1, 'create produces version 1');
+    assert(versions[0]?.version_no === 1, 'first version_no is 1');
+    assert(versions[0]?.content === 'first revision', 'v1 captures initial content');
+    v1Id = versions[0]?.id ?? '';
+  }
+  {
+    await request('PUT', `/notes/${versionedNoteId}`, {
+      token: aliceToken,
+      body: { content: 'second revision' },
+    });
+    await request('PUT', `/notes/${versionedNoteId}`, {
+      token: aliceToken,
+      body: { content: 'third revision' },
+    });
+    const r = await request('GET', `/notes/${versionedNoteId}/versions`, { token: aliceToken });
+    const versions = r.body as Array<{ version_no: number; content: string }>;
+    assert(versions.length === 3, 'after 2 updates, 3 versions exist');
+    assert(versions[0]?.version_no === 3, 'newest version_no first (3)');
+    assert(versions[2]?.version_no === 1, 'oldest version_no last (1)');
+  }
+  {
+    const r = await request('GET', `/notes/${versionedNoteId}/versions/${v1Id}`, { token: aliceToken });
+    assert(r.status === 200, 'fetch specific version -> 200');
+    assert(
+      (r.body as { content: string }).content === 'first revision',
+      'v1 content matches'
+    );
+  }
+  {
+    const r = await request('GET', `/notes/${versionedNoteId}/versions/00000000-0000-0000-0000-000000000000`, { token: aliceToken });
+    assert(r.status === 404, 'unknown version id -> 404');
+  }
+  {
+    const r = await request('GET', '/notes/00000000-0000-0000-0000-000000000000/versions', { token: aliceToken });
+    assert(r.status === 404, 'versions of unknown note -> 404');
+  }
+  {
+    const r = await request('GET', `/notes/${versionedNoteId}/versions`, { token: bobToken });
+    assert(r.status === 404, 'bob cannot see versions of alice-only note -> 404');
+  }
+  {
+    await request('POST', `/notes/${versionedNoteId}/share`, {
+      token: aliceToken,
+      body: { share_with_email: bobEmail },
+    });
+    const r = await request('GET', `/notes/${versionedNoteId}/versions`, { token: bobToken });
+    assert(r.status === 200, 'bob can list versions after share -> 200');
+    assert((r.body as unknown[]).length === 3, 'bob sees all 3 versions');
+  }
+  {
+    const r = await request('POST', `/notes/${versionedNoteId}/versions/${v1Id}/restore`, {
+      token: bobToken,
+    });
+    assert(r.status === 404, 'bob cannot restore (only owner) -> 404');
+  }
+  {
+    const r = await request('POST', `/notes/${versionedNoteId}/versions/${v1Id}/restore`, {
+      token: aliceToken,
+    });
+    assert(r.status === 200, 'alice restores v1 -> 200');
+    assert(
+      (r.body as { content: string }).content === 'first revision',
+      'note content matches restored version'
+    );
+  }
+  {
+    const r = await request('GET', `/notes/${versionedNoteId}/versions`, { token: aliceToken });
+    const versions = r.body as Array<{ version_no: number; content: string }>;
+    assert(versions.length === 4, 'restore creates a 4th version');
+    assert(versions[0]?.content === 'first revision', 'newest version reflects restored content');
+  }
+  {
+    await request('DELETE', `/notes/${versionedNoteId}`, { token: aliceToken });
+    const r = await request('GET', `/notes/${versionedNoteId}/versions`, { token: aliceToken });
+    assert(r.status === 404, 'versions inaccessible after note delete -> 404');
+  }
+
   console.log('\nDelete + cleanup:');
   for (const id of [noteId, n1, n2, n3]) {
     const r = await request('DELETE', `/notes/${id}`, { token: aliceToken });

@@ -10,6 +10,7 @@ import {
   pinNoteSchema,
   reorderNotesSchema,
   paginationSchema,
+  versionParamSchema,
 } from "../validation/schemas";
 
 export const notesRouter = Router();
@@ -38,6 +39,24 @@ export function serializeNote(n: NoteRow) {
   };
 }
 
+interface VersionRow {
+  id: string;
+  versionNo: number;
+  title: string;
+  content: string;
+  createdAt: Date;
+}
+
+function serializeVersion(v: VersionRow) {
+  return {
+    id: v.id,
+    version_no: v.versionNo,
+    title: v.title,
+    content: v.content,
+    created_at: v.createdAt.toISOString(),
+  };
+}
+
 notesRouter.get("/notes", async (req, res) => {
   const { limit, offset } = paginationSchema.parse(req.query);
   const userId = req.user!.id;
@@ -62,9 +81,22 @@ notesRouter.get("/notes", async (req, res) => {
 notesRouter.post("/notes", async (req, res) => {
   const data = createNoteSchema.parse(req.body);
   const userId = req.user!.id;
-  const note = await prisma.note.create({
-    data: { ownerId: userId, title: data.title, content: data.content },
+
+  const note = await prisma.$transaction(async (tx) => {
+    const n = await tx.note.create({
+      data: { ownerId: userId, title: data.title, content: data.content },
+    });
+    await tx.noteVersion.create({
+      data: {
+        noteId: n.id,
+        versionNo: 1,
+        title: n.title,
+        content: n.content,
+      },
+    });
+    return n;
   });
+
   res.status(201).json(serializeNote(note));
 });
 
@@ -103,13 +135,31 @@ notesRouter.put("/notes/:id", async (req, res) => {
   const data = updateNoteSchema.parse(req.body);
   const userId = req.user!.id;
 
-  const result = await prisma.note.updateMany({
-    where: { id, ownerId: userId },
-    data,
-  });
-  if (result.count === 0) throw new AppError(404, "Note not found");
+  const note = await prisma.$transaction(async (tx) => {
+    const result = await tx.note.updateMany({
+      where: { id, ownerId: userId },
+      data,
+    });
+    if (result.count === 0) return null;
 
-  const note = await prisma.note.findUniqueOrThrow({ where: { id } });
+    const updated = await tx.note.findUniqueOrThrow({ where: { id } });
+
+    const max = await tx.noteVersion.aggregate({
+      where: { noteId: id },
+      _max: { versionNo: true },
+    });
+    await tx.noteVersion.create({
+      data: {
+        noteId: id,
+        versionNo: (max._max.versionNo ?? 0) + 1,
+        title: updated.title,
+        content: updated.content,
+      },
+    });
+    return updated;
+  });
+
+  if (!note) throw new AppError(404, "Note not found");
   res.json(serializeNote(note));
 });
 
@@ -136,6 +186,88 @@ notesRouter.put("/notes/:id/pin", async (req, res) => {
   if (result.count === 0) throw new AppError(404, "Note not found");
 
   const note = await prisma.note.findUniqueOrThrow({ where: { id } });
+  res.json(serializeNote(note));
+});
+
+notesRouter.get("/notes/:id/versions", async (req, res) => {
+  const { id } = noteIdParamSchema.parse(req.params);
+  const userId = req.user!.id;
+
+  const note = await prisma.note.findFirst({
+    where: {
+      id,
+      OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
+    },
+    select: { id: true },
+  });
+  if (!note) throw new AppError(404, "Note not found");
+
+  const versions = await prisma.noteVersion.findMany({
+    where: { noteId: id },
+    orderBy: { versionNo: "desc" },
+  });
+  res.json(versions.map(serializeVersion));
+});
+
+notesRouter.get("/notes/:id/versions/:versionId", async (req, res) => {
+  const { id, versionId } = versionParamSchema.parse(req.params);
+  const userId = req.user!.id;
+
+  const note = await prisma.note.findFirst({
+    where: {
+      id,
+      OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
+    },
+    select: { id: true },
+  });
+  if (!note) throw new AppError(404, "Note not found");
+
+  const version = await prisma.noteVersion.findFirst({
+    where: { id: versionId, noteId: id },
+  });
+  if (!version) throw new AppError(404, "Version not found");
+  res.json(serializeVersion(version));
+});
+
+notesRouter.post("/notes/:id/versions/:versionId/restore", async (req, res) => {
+  const { id, versionId } = versionParamSchema.parse(req.params);
+  const userId = req.user!.id;
+
+  const note = await prisma.$transaction(async (tx) => {
+    const owned = await tx.note.findFirst({
+      where: { id, ownerId: userId },
+      select: { id: true },
+    });
+    if (!owned) return null;
+
+    const version = await tx.noteVersion.findFirst({
+      where: { id: versionId, noteId: id },
+    });
+    if (!version) return "VERSION_MISSING" as const;
+
+    await tx.note.update({
+      where: { id },
+      data: { title: version.title, content: version.content },
+    });
+    const updated = await tx.note.findUniqueOrThrow({ where: { id } });
+
+    const max = await tx.noteVersion.aggregate({
+      where: { noteId: id },
+      _max: { versionNo: true },
+    });
+    await tx.noteVersion.create({
+      data: {
+        noteId: id,
+        versionNo: (max._max.versionNo ?? 0) + 1,
+        title: updated.title,
+        content: updated.content,
+      },
+    });
+    return updated;
+  });
+
+  if (note === null) throw new AppError(404, "Note not found");
+  if (note === "VERSION_MISSING") throw new AppError(404, "Version not found");
   res.json(serializeNote(note));
 });
 
