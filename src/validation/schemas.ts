@@ -58,3 +58,15 @@ export const reorderNotesSchema = z.object({
 
 export type PinNoteBody = z.infer<typeof pinNoteSchema>;
 export type ReorderNotesBody = z.infer<typeof reorderNotesSchema>;
+
+export const paginationSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const searchQuerySchema = paginationSchema.extend({
+  q: z.string().trim().min(1, 'Query parameter q is required').max(255),
+});
+
+export type PaginationQuery = z.infer<typeof paginationSchema>;
+export type SearchQuery = z.infer<typeof searchQuerySchema>;

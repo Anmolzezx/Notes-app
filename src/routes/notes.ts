@@ -9,13 +9,14 @@ import {
   shareNoteSchema,
   pinNoteSchema,
   reorderNotesSchema,
+  paginationSchema,
 } from "../validation/schemas";
 
 export const notesRouter = Router();
 
 notesRouter.use(requireAuth);
 
-interface NoteRow {
+export interface NoteRow {
   id: string;
   title: string;
   content: string;
@@ -25,7 +26,7 @@ interface NoteRow {
   updatedAt: Date;
 }
 
-function serializeNote(n: NoteRow) {
+export function serializeNote(n: NoteRow) {
   return {
     id: n.id,
     title: n.title,
@@ -38,13 +39,23 @@ function serializeNote(n: NoteRow) {
 }
 
 notesRouter.get("/notes", async (req, res) => {
+  const { limit, offset } = paginationSchema.parse(req.query);
   const userId = req.user!.id;
-  const notes = await prisma.note.findMany({
-    where: {
-      OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
-    },
-    orderBy: [{ pinned: "desc" }, { position: "asc" }, { updatedAt: "desc" }],
-  });
+  const where = {
+    OR: [{ ownerId: userId }, { shares: { some: { userId } } }],
+  };
+
+  const [total, notes] = await prisma.$transaction([
+    prisma.note.count({ where }),
+    prisma.note.findMany({
+      where,
+      orderBy: [{ pinned: "desc" }, { position: "asc" }, { updatedAt: "desc" }],
+      skip: offset,
+      take: limit,
+    }),
+  ]);
+
+  res.set("X-Total-Count", String(total));
   res.json(notes.map(serializeNote));
 });
 
