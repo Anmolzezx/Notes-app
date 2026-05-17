@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Note } from '../types';
 import NoteEditor from './NoteEditor';
+import { PinIcon, HistoryIcon, ShareIcon, EditIcon, TrashIcon } from './Icons';
 
 interface Props {
   note: Note;
@@ -55,30 +56,32 @@ export default function NoteCard({
         <div className="note-actions">
           {note.is_owner && (
             <button
-              className="btn-ghost"
+              className={`icon-btn ${note.pinned ? 'icon-btn-active' : ''}`}
               onClick={() => onPin(!note.pinned)}
               title={note.pinned ? 'Unpin' : 'Pin'}
+              aria-label={note.pinned ? 'Unpin' : 'Pin'}
             >
-              {note.pinned ? '📌' : '📍'}
+              <PinIcon filled={note.pinned} />
             </button>
           )}
-          <button className="btn-ghost" onClick={onHistory} title="Version history">
-            ⟲
+          <button className="icon-btn" onClick={onHistory} title="Version history" aria-label="Version history">
+            <HistoryIcon />
           </button>
           {note.is_owner && (
             <>
-              <button className="btn-ghost" onClick={onShare} title="Share">
-                ⇪
+              <button className="icon-btn" onClick={onShare} title="Share" aria-label="Share">
+                <ShareIcon />
               </button>
-              <button className="btn-ghost" onClick={() => setEditing(true)} title="Edit">
-                ✎
+              <button className="icon-btn" onClick={() => setEditing(true)} title="Edit" aria-label="Edit">
+                <EditIcon />
               </button>
               <button
-                className="btn-ghost btn-danger"
+                className="icon-btn icon-btn-danger"
                 onClick={onDelete}
                 title="Delete"
+                aria-label="Delete"
               >
-                ✕
+                <TrashIcon />
               </button>
             </>
           )}

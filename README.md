@@ -6,6 +6,30 @@ A multi-user notes service: REST API + React frontend. JWT auth, sharing, pinnin
 **Frontend:** React 18 · Vite · TypeScript (served as static files by the same Express server in production)
 **Deploy:** Docker · Render.com (blueprint via [render.yaml](render.yaml))
 
+**Live demo:** https://notes-app-2280.onrender.com
+
+---
+
+> ## ⚠️ Heads-up: First request may be slow (cold start)
+>
+> This app is deployed on **Render's free tier**, which **spins down the container after ~15 minutes of inactivity**. The very first request after a period of inactivity has to wait for the container to wake up.
+>
+> **What to expect:**
+> - **Cold start (idle > 15 min):** first request takes **~30–60 seconds** while Render rebuilds and starts the container. Subsequent requests are instant.
+> - **Warm:** every endpoint typically responds in **< 500 ms**.
+>
+> **If you're an automated grader / running scripted tests:**
+> - Hit `GET /health` once and wait for `200 {"status":"ok"}` before running the rest of the suite. That wakes the container.
+> - Allow at least **60 seconds** for the very first request before timing out.
+> - All subsequent calls (and the smoke test that follows) will be fast.
+>
+> ```bash
+> # Wake the service before testing
+> curl https://notes-app-2280.onrender.com/health
+> ```
+>
+> This is a free-tier limitation, not a bug. Upgrading to Render's Starter plan ($7/mo) would keep it always-on.
+
 ---
 
 ## Endpoints

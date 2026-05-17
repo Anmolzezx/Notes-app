@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { NoteVersion } from '../types';
+import { CloseIcon } from './Icons';
 
 interface Props {
   noteId: string;
@@ -68,8 +69,8 @@ export default function VersionsModal({
       <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>Version history</h2>
-          <button className="btn-ghost" onClick={onClose} aria-label="Close">
-            ✕
+          <button className="icon-btn" onClick={onClose} aria-label="Close">
+            <CloseIcon />
           </button>
         </div>
         <p className="modal-sub">

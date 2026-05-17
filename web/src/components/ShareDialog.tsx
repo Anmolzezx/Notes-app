@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CloseIcon } from './Icons';
 
 interface Props {
   noteTitle: string;
@@ -30,8 +31,8 @@ export default function ShareDialog({ noteTitle, onShare, onClose }: Props) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>Share note</h2>
-          <button className="btn-ghost" onClick={onClose} aria-label="Close">
-            ✕
+          <button className="icon-btn" onClick={onClose} aria-label="Close">
+            <CloseIcon />
           </button>
         </div>
         <p className="modal-sub">
