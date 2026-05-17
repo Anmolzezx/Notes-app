@@ -8,6 +8,7 @@ interface Props {
   onDelete: () => void;
   onPin: (pinned: boolean) => void;
   onShare: () => void;
+  onHistory: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -20,7 +21,14 @@ function formatDate(iso: string): string {
   });
 }
 
-export default function NoteCard({ note, onUpdate, onDelete, onPin, onShare }: Props) {
+export default function NoteCard({
+  note,
+  onUpdate,
+  onDelete,
+  onPin,
+  onShare,
+  onHistory,
+}: Props) {
   const [editing, setEditing] = useState(false);
 
   if (editing) {
@@ -43,19 +51,37 @@ export default function NoteCard({ note, onUpdate, onDelete, onPin, onShare }: P
       <div className="note-head">
         <h3 className="note-title">{note.title}</h3>
         {note.pinned && <span className="tag">Pinned</span>}
+        {!note.is_owner && <span className="tag tag-info">Shared</span>}
         <div className="note-actions">
-          <button className="btn-ghost" onClick={() => onPin(!note.pinned)} title={note.pinned ? 'Unpin' : 'Pin'}>
-            {note.pinned ? '📌' : '📍'}
+          {note.is_owner && (
+            <button
+              className="btn-ghost"
+              onClick={() => onPin(!note.pinned)}
+              title={note.pinned ? 'Unpin' : 'Pin'}
+            >
+              {note.pinned ? '📌' : '📍'}
+            </button>
+          )}
+          <button className="btn-ghost" onClick={onHistory} title="Version history">
+            ⟲
           </button>
-          <button className="btn-ghost" onClick={onShare} title="Share">
-            ⇪
-          </button>
-          <button className="btn-ghost" onClick={() => setEditing(true)} title="Edit">
-            ✎
-          </button>
-          <button className="btn-ghost btn-danger" onClick={onDelete} title="Delete">
-            ✕
-          </button>
+          {note.is_owner && (
+            <>
+              <button className="btn-ghost" onClick={onShare} title="Share">
+                ⇪
+              </button>
+              <button className="btn-ghost" onClick={() => setEditing(true)} title="Edit">
+                ✎
+              </button>
+              <button
+                className="btn-ghost btn-danger"
+                onClick={onDelete}
+                title="Delete"
+              >
+                ✕
+              </button>
+            </>
+          )}
         </div>
       </div>
       {note.content && <p className="note-content">{note.content}</p>}

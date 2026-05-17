@@ -35,5 +35,5 @@ searchRouter.get('/search', async (req, res) => {
   ]);
 
   res.set('X-Total-Count', String(total));
-  res.json(notes.map(serializeNote));
+  res.json(notes.map((n) => serializeNote(n, userId)));
 });

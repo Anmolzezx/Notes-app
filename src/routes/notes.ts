@@ -19,6 +19,7 @@ notesRouter.use("/notes", requireAuth);
 
 export interface NoteRow {
   id: string;
+  ownerId: string;
   title: string;
   content: string;
   pinned: boolean;
@@ -27,13 +28,14 @@ export interface NoteRow {
   updatedAt: Date;
 }
 
-export function serializeNote(n: NoteRow) {
+export function serializeNote(n: NoteRow, viewerId?: string) {
   return {
     id: n.id,
     title: n.title,
     content: n.content,
     pinned: n.pinned,
     position: n.position,
+    is_owner: viewerId === undefined ? undefined : n.ownerId === viewerId,
     created_at: n.createdAt.toISOString(),
     updated_at: n.updatedAt.toISOString(),
   };
@@ -75,7 +77,7 @@ notesRouter.get("/notes", async (req, res) => {
   ]);
 
   res.set("X-Total-Count", String(total));
-  res.json(notes.map(serializeNote));
+  res.json(notes.map((n) => serializeNote(n, userId)));
 });
 
 notesRouter.post("/notes", async (req, res) => {
@@ -97,7 +99,7 @@ notesRouter.post("/notes", async (req, res) => {
     return n;
   });
 
-  res.status(201).json(serializeNote(note));
+  res.status(201).json(serializeNote(note, userId));
 });
 
 notesRouter.put("/notes/reorder", async (req, res) => {
@@ -127,7 +129,7 @@ notesRouter.get("/notes/:id", async (req, res) => {
     },
   });
   if (!note) throw new AppError(404, "Note not found");
-  res.json(serializeNote(note));
+  res.json(serializeNote(note, userId));
 });
 
 notesRouter.put("/notes/:id", async (req, res) => {
@@ -160,7 +162,7 @@ notesRouter.put("/notes/:id", async (req, res) => {
   });
 
   if (!note) throw new AppError(404, "Note not found");
-  res.json(serializeNote(note));
+  res.json(serializeNote(note, userId));
 });
 
 notesRouter.delete("/notes/:id", async (req, res) => {
@@ -186,7 +188,7 @@ notesRouter.put("/notes/:id/pin", async (req, res) => {
   if (result.count === 0) throw new AppError(404, "Note not found");
 
   const note = await prisma.note.findUniqueOrThrow({ where: { id } });
-  res.json(serializeNote(note));
+  res.json(serializeNote(note, userId));
 });
 
 notesRouter.get("/notes/:id/versions", async (req, res) => {
@@ -268,7 +270,7 @@ notesRouter.post("/notes/:id/versions/:versionId/restore", async (req, res) => {
 
   if (note === null) throw new AppError(404, "Note not found");
   if (note === "VERSION_MISSING") throw new AppError(404, "Version not found");
-  res.json(serializeNote(note));
+  res.json(serializeNote(note, userId));
 });
 
 notesRouter.post("/notes/:id/share", async (req, res) => {

@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { api, getToken, clearToken } from './api';
 import AuthView from './components/AuthView';
 import NotesView from './components/NotesView';
+import { ToastProvider } from './components/Toast';
 
-export default function App() {
+function Inner() {
   const [authed, setAuthed] = useState<boolean>(() => getToken() !== null);
 
   useEffect(() => {
@@ -25,5 +26,13 @@ export default function App() {
         setAuthed(false);
       }}
     />
+  );
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <Inner />
+    </ToastProvider>
   );
 }

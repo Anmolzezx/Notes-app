@@ -3,6 +3,9 @@ import { api } from '../api';
 import type { Note } from '../types';
 import NoteCard from './NoteCard';
 import NoteEditor from './NoteEditor';
+import ShareDialog from './ShareDialog';
+import VersionsModal from './VersionsModal';
+import { useToast } from './Toast';
 
 interface Props {
   onLogout: () => void;
@@ -15,6 +18,9 @@ export default function NotesView({ onLogout }: Props) {
   const [showEditor, setShowEditor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sharing, setSharing] = useState<Note | null>(null);
+  const [historyOf, setHistoryOf] = useState<Note | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,28 +53,31 @@ export default function NotesView({ onLogout }: Props) {
     try {
       await api.createNote(title, content);
       setShowEditor(false);
+      toast.show('Note created', 'success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.show(err instanceof Error ? err.message : String(err), 'error');
     }
   }
 
   async function handleUpdate(id: string, body: { title?: string; content?: string }) {
     try {
       await api.updateNote(id, body);
+      toast.show('Note updated', 'success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.show(err instanceof Error ? err.message : String(err), 'error');
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this note?')) return;
+    if (!confirm('Delete this note? This also deletes its version history.')) return;
     try {
       await api.deleteNote(id);
+      toast.show('Note deleted', 'success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.show(err instanceof Error ? err.message : String(err), 'error');
     }
   }
 
@@ -77,25 +86,26 @@ export default function NotesView({ onLogout }: Props) {
       await api.pinNote(id, pinned);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.show(err instanceof Error ? err.message : String(err), 'error');
     }
   }
 
-  async function handleShare(id: string) {
-    const email = prompt('Share with which email?');
-    if (!email) return;
-    try {
-      const res = await api.shareNote(id, email);
-      alert(res.message);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : String(err));
-    }
+  async function handleShare(email: string) {
+    if (!sharing) return;
+    const res = await api.shareNote(sharing.id, email);
+    toast.show(res.message, 'success');
   }
 
   return (
     <div className="app">
       <div className="header">
-        <h1>Notes</h1>
+        <div>
+          <h1>Notes</h1>
+          <div className="header-meta">
+            {notes.length} note{notes.length === 1 ? '' : 's'}
+            {searchTerm && ` matching "${searchTerm}"`}
+          </div>
+        </div>
         <button className="btn-ghost" onClick={onLogout}>
           Sign out
         </button>
@@ -104,7 +114,7 @@ export default function NotesView({ onLogout }: Props) {
       <form className="toolbar" onSubmit={runSearch}>
         <input
           type="text"
-          placeholder="Search notes..."
+          placeholder="Search notes…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -128,10 +138,7 @@ export default function NotesView({ onLogout }: Props) {
       {error && <p className="error">{error}</p>}
 
       {showEditor && (
-        <NoteEditor
-          onSave={handleCreate}
-          onCancel={() => setShowEditor(false)}
-        />
+        <NoteEditor onSave={handleCreate} onCancel={() => setShowEditor(false)} />
       )}
 
       {loading ? (
@@ -151,10 +158,32 @@ export default function NotesView({ onLogout }: Props) {
               onUpdate={(body) => handleUpdate(n.id, body)}
               onDelete={() => handleDelete(n.id)}
               onPin={(p) => handlePin(n.id, p)}
-              onShare={() => handleShare(n.id)}
+              onShare={() => setSharing(n)}
+              onHistory={() => setHistoryOf(n)}
             />
           ))}
         </div>
+      )}
+
+      {sharing && (
+        <ShareDialog
+          noteTitle={sharing.title}
+          onShare={handleShare}
+          onClose={() => setSharing(null)}
+        />
+      )}
+
+      {historyOf && (
+        <VersionsModal
+          noteId={historyOf.id}
+          noteTitle={historyOf.title}
+          canRestore={historyOf.is_owner}
+          onRestored={() => {
+            toast.show('Restored to selected version', 'success');
+            void load();
+          }}
+          onClose={() => setHistoryOf(null)}
+        />
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import type { Note, ApiError } from './types';
+import type { Note, NoteVersion, ApiError } from './types';
 
 const TOKEN_KEY = 'notes_jwt';
 
@@ -72,4 +72,13 @@ export const api = {
 
   search: (q: string) =>
     request<Note[]>('GET', `/search?q=${encodeURIComponent(q)}&limit=100`),
+
+  listVersions: (id: string) =>
+    request<NoteVersion[]>('GET', `/notes/${id}/versions`),
+
+  getVersion: (id: string, versionId: string) =>
+    request<NoteVersion>('GET', `/notes/${id}/versions/${versionId}`),
+
+  restoreVersion: (id: string, versionId: string) =>
+    request<Note>('POST', `/notes/${id}/versions/${versionId}/restore`),
 };
