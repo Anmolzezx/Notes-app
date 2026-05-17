@@ -1,8 +1,10 @@
 # Notes App
 
-A multi-user notes REST API with JWT auth, sharing, pinning + custom reordering, full-text-style search, and pagination.
+A multi-user notes service: REST API + React frontend. JWT auth, sharing, pinning + custom reordering, full-text-style search, pagination, and full **version history** (every edit is snapshotted, any past version can be restored).
 
-**Stack:** TypeScript · Express 5 · PostgreSQL · Prisma ORM · zod · bcrypt · jsonwebtoken
+**Backend:** TypeScript · Express 5 · PostgreSQL · Prisma ORM · zod · bcrypt · jsonwebtoken
+**Frontend:** React 18 · Vite · TypeScript (served as static files by the same Express server in production)
+**Deploy:** Docker · Render.com (blueprint via [render.yaml](render.yaml))
 
 ---
 
@@ -32,47 +34,98 @@ Full spec at `GET /openapi.json`.
 
 ---
 
-## Local setup
+## Project layout
 
-**Prerequisites:** Node.js ≥ 20, PostgreSQL ≥ 16.
+```
+notes-app/
+├── src/                # Express + Prisma backend
+├── prisma/             # schema + migrations
+├── web/                # React + Vite frontend
+├── tests/smoke.ts      # node-native end-to-end smoke test (78 assertions)
+├── openapi.json        # OpenAPI 3.0 spec, served at GET /openapi.json
+├── Dockerfile          # 2-stage build: deps + tsc + Vite build → runtime
+└── render.yaml         # Render blueprint: web service + free Postgres
+```
+
+---
+
+## Running the project
+
+**Prerequisites:** Node.js ≥ 20, PostgreSQL ≥ 16 (only if you want a local backend).
+
+### One-time setup
 
 ```bash
 git clone <repo-url>
 cd notes-app
+
+# Backend deps
 npm install
 
-# Create a local Postgres database
-createdb notes_app
+# Frontend deps
+npm --prefix web install
 
-# Configure environment
+# Backend env
 cp .env.example .env
 # Edit .env:
 #   DATABASE_URL=postgres://<user>@localhost:5432/notes_app
 #   JWT_SECRET=<run: openssl rand -hex 32>
 #   PORT=3000
 
-# Apply database schema
+# Local Postgres + initial schema (skip if you only want to run the frontend against Render)
+createdb notes_app
 npx prisma migrate dev --name init
-
-# Run the dev server
-npm run dev
 ```
 
-The server listens on `http://localhost:3000`.
+There are three useful run modes:
 
-### Useful scripts
+### Mode A — Frontend only, talking to Render (fastest UI iteration)
+
+```bash
+cd web
+# web/.env.local already points VITE_API_PROXY_TARGET at https://notes-app-2280.onrender.com
+npm run dev
+# open the URL Vite prints (e.g. http://localhost:5173/)
+```
+No local backend. No local Postgres. Every API call is proxied through Vite to your Render deploy. HMR on UI changes.
+
+### Mode B — Backend + frontend separately (when changing both)
+
+```bash
+# Terminal 1
+npm run dev                                     # API on :3000
+
+# Terminal 2
+# Comment out VITE_API_PROXY_TARGET in web/.env.local so proxy falls back to localhost:3000
+cd web && npm run dev                           # Vite on :5173
+```
+
+### Mode C — Production-like, single port (sanity check before deploying)
+
+```bash
+npm --prefix web run build                      # builds web/dist/
+npm run dev                                     # Express serves API and web/dist/
+# open http://localhost:3000/
+```
+
+### Scripts
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | tsx watch mode — restarts on file change |
+| `npm run dev` | Backend in tsx watch mode |
 | `npm run build` | `prisma generate && tsc` → outputs `dist/` |
 | `npm start` | `prisma migrate deploy && node dist/index.js` (production) |
+| `npm run test:smoke` | Run end-to-end smoke test against `BASE_URL` (defaults to localhost:3000) |
 | `npm run prisma:migrate` | Create/apply a new local migration |
 | `npm run prisma:studio` | Open Prisma Studio at `localhost:5555` |
+| `npm --prefix web run dev` | Vite dev server with HMR + API proxy |
+| `npm --prefix web run build` | TS check + Vite build → `web/dist/` |
 
 ---
 
 ## Environment variables
+
+### Backend (`.env`)
 
 | Var | Required | Default | Purpose |
 |---|---|---|---|
@@ -80,6 +133,12 @@ The server listens on `http://localhost:3000`.
 | `JWT_SECRET` | yes | — | HS256 signing key, ≥ 16 chars. Generate with `openssl rand -hex 32`. |
 | `PORT` | no | `3000` | HTTP listener port |
 | `NODE_ENV` | no | `development` | When `production`, error responses hide stack details |
+
+### Frontend (`web/.env.local`, optional)
+
+| Var | Default | Purpose |
+|---|---|---|
+| `VITE_API_PROXY_TARGET` | `http://localhost:3000` | Where the Vite dev server proxies API calls. Set to a Render URL to develop the frontend without a local backend. |
 
 ---
 
@@ -90,25 +149,31 @@ The server listens on `http://localhost:3000`.
    - `notes-app-db` (free Postgres)
    - `notes-app` (web service, Docker runtime, `/health` probe)
 3. `JWT_SECRET` is generated automatically; `DATABASE_URL` is wired in from the database.
-4. On first deploy the container runs `prisma migrate deploy` before starting the server, so the schema is created automatically.
+4. The Docker build:
+   - Installs backend deps, runs `prisma generate`, compiles TypeScript → `dist/`
+   - Installs frontend deps, runs Vite build → `web/dist/`
+   - In the runtime image, Express serves the React app from `web/dist/` and the API on the same port — single service, no CORS to configure.
+5. On first deploy the container runs `prisma migrate deploy` before starting the server, so the schema is created automatically.
 
 Health check after deploy: `curl https://<your-app>.onrender.com/health` → `{"status":"ok"}`.
+
+> **Free-tier caveat:** the web service sleeps after 15 min idle (first hit takes ~30 s to wake), and the free Postgres expires ~30 days after creation.
 
 ---
 
 ## End-to-end smoke test
 
-Hits every endpoint against a running server. Useful right after a deploy:
+78-assertion script that hits every endpoint against a running server. Useful right after a deploy.
 
 ```bash
 # Local
-BASE_URL=http://localhost:3000 npx tsx tests/smoke.ts
+npm run test:smoke
 
 # Against production
-BASE_URL=https://<your-app>.onrender.com npx tsx tests/smoke.ts
+BASE_URL=https://<your-app>.onrender.com npm run test:smoke
 ```
 
-The script registers two users, exercises CRUD, sharing, pinning, reordering, search, and pagination, then cleans up.
+The script registers two users, exercises CRUD, sharing, pinning, reordering, search, pagination, and the full version history flow (create → multi-edit → list → fetch → restore → cascade-on-delete), then cleans up.
 
 ---
 
@@ -156,6 +221,14 @@ curl -X PUT http://localhost:3000/notes/reorder \
 # Search
 curl "http://localhost:3000/search?q=milk" \
   -H "Authorization: Bearer $TOKEN"
+
+# List version history
+curl http://localhost:3000/notes/<NOTE_ID>/versions \
+  -H "Authorization: Bearer $TOKEN"
+
+# Restore a specific version
+curl -X POST http://localhost:3000/notes/<NOTE_ID>/versions/<VERSION_ID>/restore \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
@@ -174,6 +247,8 @@ Every change to a note (create, update, or restore) is snapshotted into a separa
 - **Ownership privacy:** non-accessible notes return `404`, not `403`, so users can't enumerate IDs they don't own.
 - **Auth enumeration:** `/login` returns the same `401 "Invalid email or password"` for unknown emails and wrong passwords.
 - **Email case:** normalized to lowercase at the validation layer; lookups work whether the user types `alice@…` or `ALICE@…`.
-- **Sharing is read-only:** shared users can `GET`, but only the owner can `PUT`/`DELETE`/`SHARE`/`PIN`.
+- **Sharing is read-only:** shared users can `GET` (note + version history), but only the owner can `PUT`/`DELETE`/`SHARE`/`PIN`/`restore`.
 - **Reorder partial success:** unknown or non-owned UUIDs in the `note_ids` array are silently skipped — the response `count` tells you how many actually updated.
 - **Pagination:** body stays a plain array per spec; total via `X-Total-Count` response header.
+- **`is_owner` flag:** every note response includes a boolean `is_owner` (`true` if the viewer owns it, `false` if it was shared with them). Used by the frontend to hide actions a shared user can't perform.
+- **Frontend served by the API:** in production the Docker image bundles both. Express has a static-files handler for `web/dist/` plus an SPA fallback for unknown non-API paths. No CORS to configure, no second deploy.
